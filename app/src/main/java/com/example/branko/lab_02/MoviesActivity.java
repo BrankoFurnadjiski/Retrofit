@@ -1,6 +1,11 @@
 package com.example.branko.lab_02;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.Loader;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -15,10 +20,13 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import static com.example.branko.lab_02.DownloadAndSaveMoviesService.DATABASE_UPDATED;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class MoviesActivity extends AppCompatActivity {
+public class MoviesActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<List<Movie>>{
+
     private Toolbar toolbar;
     private MenuItem searchAction;
     private boolean isSearchOpened = false;
@@ -28,33 +36,63 @@ public class MoviesActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private RecyclerAdapter recyclerAdapter;
     private LinearLayoutManager layoutManager;
+    private UpdateMoviesReceiver receiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_movies);
 
-        toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-
+        this.receiver = new UpdateMoviesReceiver();
+        initUI();
         initRecycler();
+        loadDataFromDb();
     }
 
-    private void initRecycler(){
-        data = new ArrayList<>();
+    @Override
+    protected void onStart() {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(DATABASE_UPDATED);
+        this.registerReceiver(receiver, filter);
 
-        recyclerView = (RecyclerView) findViewById(R.id.movies);
-        recyclerAdapter = new RecyclerAdapter(data, getApplicationContext());
-        layoutManager = new LinearLayoutManager(this.getApplicationContext());
+    }
 
-        recyclerView.setAdapter(recyclerAdapter);
-        recyclerView.setLayoutManager(layoutManager);
+    @Override
+    protected void onStop() {
+        super.onStop();
+        this.unregisterReceiver(receiver);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        MoviesDatabase.onDestroyInstance();
+    }
+
+    @Override
+    public Loader<List<Movie>> onCreateLoader(int id, Bundle args) {
+        return new MovieLoader(this.getApplicationContext());
+    }
+
+    @Override
+    public void onLoadFinished(Loader<List<Movie>> loader, List<Movie> data) {
+        this.recyclerAdapter.setData(data);
+    }
+
+    @Override
+    public void onLoaderReset(Loader<List<Movie>> loader) {
+        this.recyclerAdapter.setData(new ArrayList<>());
     }
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         searchAction = menu.findItem(R.id.action_search);
         return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return super.onCreateOptionsMenu(menu);
     }
 
     @Override
@@ -71,6 +109,30 @@ public class MoviesActivity extends AppCompatActivity {
 
         return super.onOptionsItemSelected(item);
     }
+
+    @Override
+    public void onBackPressed() {
+        if(isSearchOpened) {
+            handleMenuSearch();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    private class UpdateMoviesReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+
+            MoviesActivity.this
+                    .getSupportLoaderManager()
+                    .restartLoader(0,
+                            null,
+                            MoviesActivity.this)
+                    .forceLoad();
+        }
+    }
+
 
     private void handleMenuSearch() {
         ActionBar actionBar = getSupportActionBar(); //get the actionbar
@@ -102,7 +164,7 @@ public class MoviesActivity extends AppCompatActivity {
                 @Override
                 public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                     if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                        EditText movieTitle = (EditText) findViewById(R.id.editSearch);
+                        EditText movieTitle = findViewById(R.id.editSearch);
                         doSearch(movieTitle.getText().toString());
                         return true;
                     }
@@ -122,23 +184,42 @@ public class MoviesActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return super.onCreateOptionsMenu(menu);
+    private void initUI() {
+        setContentView(R.layout.activity_movies);
+
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
     }
 
-    @Override
-    public void onBackPressed() {
-        if(isSearchOpened) {
-            handleMenuSearch();
-            return;
-        }
-        super.onBackPressed();
+    private void initRecycler(){
+        data = new ArrayList<>();
+
+        recyclerView = findViewById(R.id.movies);
+        recyclerAdapter = new RecyclerAdapter(data, this);
+        layoutManager = new LinearLayoutManager(this.getApplicationContext());
+
+        recyclerView.setAdapter(recyclerAdapter);
+        recyclerView.setLayoutManager(layoutManager);
     }
 
     private void doSearch(String movieName){
-        MovieLoadingTask asyncTask = new MovieLoadingTask(recyclerAdapter, movieName);
-        asyncTask.execute();
+        invokeDataLoadingInService(movieName);
+        loadDataFromDb();
     }
+
+    private void invokeDataLoadingInService(String movieName) {
+        Intent intent = new Intent(this, DownloadAndSaveMoviesService.class);
+        intent.putExtra("MovieName", movieName);
+
+        this.startService(intent);
+    }
+
+    private void loadDataFromDb() {
+        this.getSupportLoaderManager()
+                .initLoader(0,
+                        null,
+                        this)
+                .forceLoad();
+    }
+
 }

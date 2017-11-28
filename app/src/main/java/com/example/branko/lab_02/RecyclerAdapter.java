@@ -4,6 +4,7 @@ package com.example.branko.lab_02;
  * Created by Branko on 12.11.2017.
  */
 
+import android.net.ConnectivityManager;
 import android.view.View;
 
 import android.content.Context;
@@ -57,6 +58,7 @@ public class RecyclerAdapter extends RecyclerView.Adapter<RecyclerViewHolder> {
 
     public void setData(List<Movie> data){
         this.data = data;
+        this.notifyDataSetChanged();
     }
 
     public List<Movie> getData() {
@@ -75,5 +77,6 @@ public class RecyclerAdapter extends RecyclerView.Adapter<RecyclerViewHolder> {
 
         data.remove(index);
         notifyDataSetChanged();
+
     }
 }

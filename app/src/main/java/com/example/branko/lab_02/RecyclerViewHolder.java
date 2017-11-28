@@ -1,10 +1,13 @@
 package com.example.branko.lab_02;
 
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /**
  * Created by Branko on 14.11.2017.
@@ -31,7 +34,11 @@ class RecyclerViewHolder extends RecyclerView.ViewHolder{
             public void onClick(View v) {
                 Intent intent = new Intent(v.getContext(), MovieDetailsActivity.class);
                 intent.putExtra(EXTRA_MOVIE_TITLE, movieName.getText().toString());
-                v.getContext().startActivity(intent);
+                if(isNetworkConnected()) {
+                    v.getContext().startActivity(intent);
+                } else {
+                    Toast.makeText(recyclerAdapter.context,"No Internet connection!!! Please connect to Internet" ,Toast.LENGTH_SHORT).show();
+                }
             }
         });
 
@@ -42,5 +49,11 @@ class RecyclerViewHolder extends RecyclerView.ViewHolder{
                 return false;
             }
         });
+    }
+
+    private boolean isNetworkConnected() {
+        ConnectivityManager cm = (ConnectivityManager) recyclerAdapter.context.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        return cm.getActiveNetworkInfo() != null;
     }
 }
